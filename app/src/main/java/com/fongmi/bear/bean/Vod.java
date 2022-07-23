@@ -3,6 +3,8 @@ package com.fongmi.bear.bean;
 import android.text.TextUtils;
 import android.view.View;
 
+import androidx.annotation.NonNull;
+
 import com.google.gson.Gson;
 import com.google.gson.annotations.SerializedName;
 
@@ -91,7 +93,7 @@ public class Vod {
     }
 
     public List<Flag> getVodFlags() {
-        return vodFlags;
+        return vodFlags = vodFlags == null ? new ArrayList<>() : vodFlags;
     }
 
     public void setVodFlags(List<Flag> vodFlags) {
@@ -102,10 +104,31 @@ public class Vod {
         return getVodRemarks().isEmpty() ? View.GONE : View.VISIBLE;
     }
 
+    public void setVodFlags() {
+        String[] playFlags = getVodPlayFrom().split("\\$\\$\\$");
+        String[] playUrls = getVodPlayUrl().split("\\$\\$\\$");
+        for (int i = 0; i < playFlags.length; i++) {
+            Vod.Flag item = new Vod.Flag(playFlags[i]);
+            String[] urls = playUrls[i].contains("#") ? playUrls[i].split("#") : new String[]{playUrls[i]};
+            for (String url : urls) {
+                if (!url.contains("$")) continue;
+                String[] split = url.split("\\$");
+                if (split.length >= 2) item.getEpisodes().add(new Vod.Flag.Episode(split[0], split[1]));
+            }
+            getVodFlags().add(item);
+        }
+    }
+
     public static class Flag {
 
+        @SerializedName("flag")
         private final String flag;
+        @SerializedName("episodes")
         private final List<Episode> episodes;
+
+        public static Flag objectFrom(String str) {
+            return new Gson().fromJson(str, Flag.class);
+        }
 
         public Flag(String flag) {
             this.flag = flag;
@@ -128,10 +151,19 @@ public class Vod {
             for (Episode item : getEpisodes()) item.setActivated(episode);
         }
 
+        @NonNull
+        @Override
+        public String toString() {
+            return new Gson().toJson(this);
+        }
+
         public static class Episode {
 
+            @SerializedName("name")
             private final String name;
+            @SerializedName("url")
             private final String url;
+            @SerializedName("activated")
             private boolean activated;
 
             public Episode(String name, String url) {
@@ -149,6 +181,10 @@ public class Vod {
 
             public boolean isActivated() {
                 return activated;
+            }
+
+            public void setActivated(boolean activated) {
+                this.activated = activated;
             }
 
             private void deactivated() {
