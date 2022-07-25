@@ -130,6 +130,7 @@ public class DetailActivity extends BaseActivity {
             if (object != null) Players.get().setMediaSource(object);
         });
         mSiteViewModel.result.observe(this, result -> {
+            if (result == null) return;
             if (result.getList().isEmpty()) mBinding.progressLayout.showErrorText();
             else setDetail(result.getList().get(0));
         });
@@ -173,7 +174,7 @@ public class DetailActivity extends BaseActivity {
     private void setEpisode(Vod.Flag item) {
         mEpisodeAdapter.clear();
         mEpisodeAdapter.addAll(0, item.getEpisodes());
-        mEpisodePresenter.performClick((Vod.Flag.Episode) mEpisodeAdapter.get(0));
+        if (mEpisodeAdapter.size() > 0) mEpisodePresenter.performClick((Vod.Flag.Episode) mEpisodeAdapter.get(0));
         setGroup(item.getEpisodes().size());
     }
 
