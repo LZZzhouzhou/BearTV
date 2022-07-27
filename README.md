@@ -1,6 +1,6 @@
 # BearTV
 
-### Based on CatVod  
+### 基于  TVBoxOSC
 https://github.com/CatVodTVOfficial
 
 ![Build](https://shields.io/github/workflow/status/xczxcx2255/BearTV/Test%20Build?event=push&logo=github&label=Build)
