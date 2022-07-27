@@ -42,12 +42,17 @@ jobs:
           signingConfig='ICAgICAgICAgICAgaWYgKHByb2plY3QuaGFzUHJvcGVydHkoIlJFTEVBU0VfU1RPUkVfRklMRSIpKSB7XAogICAgICAgICAgICAgICAgc2lnbmluZ0NvbmZpZyBzaWduaW5nQ29uZmlncy5teUNvbmZpZ1wKICAgICAgICAgICAgfVwK'
           signingConfigs="$(echo "$signingConfigs" |base64 -d )"
           signingConfig="$(echo "$signingConfig" |base64 -d )"
-          sed -i -e "/defaultConfig {/i\\$signingConfigs " -e "/debug {/a\\$signingConfig " -e "/release {/a\\$signingConfig " app/build.gradle
+          sed -i -e "/defaultConfig {/i\\$signingConfigs " -e "/defaultConfig {/i\\$lintOptions " -e "/debug {/a\\$signingConfig " -e "/release {/a\\$signingConfig " app/build.gradle
+          if ! grep -q 'lintOptions' app/build.gradle; then
+            lintOptions='ICAgIGxpbnRPcHRpb25zIHtcCiAgICAgICAgY2hlY2tSZWxlYXNlQnVpbGRzIGZhbHNlXAogICAgICAgIGFib3J0T25FcnJvciBmYWxzZVwKICAgIH1cClw='
+            lintOptions="$(echo "$lintOptions" |base64 -d )"
+            sed -i "/defaultConfig {/i\\$lintOptions " app/build.gradle
+          fi
           cp -f ${{ github.workspace }}/.github/workflows/BearTV.jks app/BearTV.jks
-          sed -i '$a\RELEASE_STORE_FILE=./BearTV.jks'     ./gradle.properties
-          sed -i '$a\RELEASE_KEY_ALIAS=BearTV'            ./gradle.properties
-          sed -i '$a\RELEASE_STORE_PASSWORD=BearTV'       ./gradle.properties
-          sed -i '$a\RELEASE_KEY_PASSWORD=BearTV'         ./gradle.properties
+          sed -i '$a\RELEASE_STORE_FILE=./BearTV.jks'       ./gradle.properties
+          sed -i '$a\RELEASE_KEY_ALIAS=TVBoxOSC'            ./gradle.properties
+          sed -i '$a\RELEASE_STORE_PASSWORD=TVBoxOSC'       ./gradle.properties
+          sed -i '$a\RELEASE_KEY_PASSWORD=TVBoxOSC'         ./gradle.properties
       - name: Build Release With Gradle
         if: ${{ env.commit }}
         working-directory: BearTV
