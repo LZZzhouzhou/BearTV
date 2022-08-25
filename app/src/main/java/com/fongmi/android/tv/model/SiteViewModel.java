@@ -1,18 +1,22 @@
 package com.fongmi.android.tv.model;
 
+import android.text.TextUtils;
+
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
 import com.fongmi.android.tv.api.ApiConfig;
 import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.bean.Site;
+import com.fongmi.android.tv.bean.Vod;
 import com.fongmi.android.tv.net.OKHttp;
 import com.fongmi.android.tv.utils.Utils;
 import com.github.catvod.crawler.Spider;
 import com.github.catvod.crawler.SpiderDebug;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.google.gson.Gson;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -20,12 +24,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import okhttp3.HttpUrl;
-
 public class SiteViewModel extends ViewModel {
 
-    public MutableLiveData<JsonObject> player;
     public MutableLiveData<Result> result;
+    public MutableLiveData<Result> player;
     public ExecutorService service;
 
     public SiteViewModel() {
@@ -37,12 +39,16 @@ public class SiteViewModel extends ViewModel {
         return result;
     }
 
+    public MutableLiveData<Result> getPlayer() {
+        return player;
+    }
+
     public void homeContent() {
-        Site home = ApiConfig.get().getHome();
+        Site site = ApiConfig.get().getHome();
         execute(result, () -> {
-            if (home.getType() == 3) {
-                Spider spider = ApiConfig.get().getCSP(home);
-                String homeContent = spider.homeContent(false);
+            if (site.getType() == 3) {
+                Spider spider = ApiConfig.get().getCSP(site);
+                String homeContent = spider.homeContent(true);
                 SpiderDebug.log(homeContent);
                 Result result = Result.fromJson(homeContent);
                 if (result.getList().size() > 0) return result;
@@ -50,89 +56,140 @@ public class SiteViewModel extends ViewModel {
                 SpiderDebug.log(homeVideoContent);
                 result.setList(Result.fromJson(homeVideoContent).getList());
                 return result;
-            } else {
-                String body = OKHttp.newCall(home.getApi()).execute().body().string();
+            } else if (site.getType() == 4) {
+                HashMap<String, String> params = new HashMap<>();
+                params.put("filter", "true");
+                String body = OKHttp.newCall(site.getApi(), params).execute().body().string();
                 SpiderDebug.log(body);
-                if (home.getType() == 0) return Result.fromXml(body);
-                else if (home.getType() == 1) return Result.fromJson(body);
-                else return new Result();
+                return Result.fromJson(body);
+            } else {
+                String body = OKHttp.newCall(site.getApi()).execute().body().string();
+                SpiderDebug.log(body);
+                Result result = site.getType() == 0 ? Result.fromXml(body) : Result.fromJson(body);
+                if (result.getList().isEmpty() || result.getList().get(0).getVodPic().length() > 0) return result;
+                ArrayList<String> ids = new ArrayList<>();
+                for (Vod item : result.getList()) ids.add(item.getVodId());
+                HashMap<String, String> params = new HashMap<>();
+                params.put("ac", site.getType() == 0 ? "videolist" : "detail");
+                params.put("ids", TextUtils.join(",", ids));
+                body = OKHttp.newCall(site.getApi(), params).execute().body().string();
+                List<Vod> items = site.getType() == 0 ? Result.fromXml(body).getList() : Result.fromJson(body).getList();
+                result.setList(items);
+                return result;
             }
         });
     }
 
     public void categoryContent(String tid, String page, boolean filter, HashMap<String, String> extend) {
-        Site home = ApiConfig.get().getHome();
+        Site site = ApiConfig.get().getHome();
         execute(result, () -> {
-            if (home.getType() == 3) {
-                Spider spider = ApiConfig.get().getCSP(home);
+            if (site.getType() == 3) {
+                Spider spider = ApiConfig.get().getCSP(site);
                 String categoryContent = spider.categoryContent(tid, page, filter, extend);
                 SpiderDebug.log(categoryContent);
                 return Result.fromJson(categoryContent);
             } else {
-                HttpUrl url = HttpUrl.parse(home.getApi()).newBuilder().addQueryParameter("ac", home.getType() == 0 ? "videolist" : "detail").addQueryParameter("t", tid).addQueryParameter("pg", page).build();
-                String body = OKHttp.newCall(url).execute().body().string();
+                HashMap<String, String> params = new HashMap<>();
+                if (site.getType() == 4) params.put("ext", Utils.getBase64(new Gson().toJson(extend)));
+                params.put("ac", site.getType() == 0 ? "videolist" : "detail");
+                params.put("t", tid);
+                params.put("pg", page);
+                String body = OKHttp.newCall(site.getApi(), params).execute().body().string();
                 SpiderDebug.log(body);
-                if (home.getType() == 0) return Result.fromXml(body);
-                else if (home.getType() == 1) return Result.fromJson(body);
-                return new Result();
+                return site.getType() == 0 ? Result.fromXml(body) : Result.fromJson(body);
             }
         });
     }
 
-    public void detailContent(String id) {
-        Site home = ApiConfig.get().getHome();
+    public void detailContent(String key, String id) {
+        Site site = ApiConfig.get().getSite(key);
         execute(result, () -> {
-            if (home.getType() == 3) {
-                Spider spider = ApiConfig.get().getCSP(home);
-                String detailContent = spider.detailContent(List.of(id));
+            if (site.getType() == 3) {
+                Spider spider = ApiConfig.get().getCSP(site);
+                String detailContent = spider.detailContent(Arrays.asList(id));
                 SpiderDebug.log(detailContent);
                 Result result = Result.fromJson(detailContent);
                 if (!result.getList().isEmpty()) result.getList().get(0).setVodFlags();
                 return result;
             } else {
-                HttpUrl url = HttpUrl.parse(home.getApi()).newBuilder().addQueryParameter("ac", home.getType() == 0 ? "videolist" : "detail").addQueryParameter("ids", id).build();
-                String body = OKHttp.newCall(url).execute().body().string();
+                HashMap<String, String> params = new HashMap<>();
+                params.put("ac", site.getType() == 0 ? "videolist" : "detail");
+                params.put("ids", id);
+                String body = OKHttp.newCall(site.getApi(), params).execute().body().string();
                 SpiderDebug.log(body);
-                Result result;
-                if (home.getType() == 0) result = Result.fromXml(body);
-                else if (home.getType() == 1) result = Result.fromJson(body);
-                else result = new Result();
+                Result result = site.getType() == 0 ? Result.fromXml(body) : Result.fromJson(body);
                 if (!result.getList().isEmpty()) result.getList().get(0).setVodFlags();
                 return result;
             }
         });
     }
 
-    public void playerContent(String flag, String id) {
-        Site home = ApiConfig.get().getHome();
+    public void playerContent(String key, String flag, String id) {
+        Site site = ApiConfig.get().getSite(key);
         execute(player, () -> {
-            if (home.getType() == 3) {
-                Spider spider = ApiConfig.get().getCSP(home);
+            if (site.getType() == 3) {
+                Spider spider = ApiConfig.get().getCSP(site);
                 String playerContent = spider.playerContent(flag, id, ApiConfig.get().getFlags());
                 SpiderDebug.log(playerContent);
-                JsonObject object = JsonParser.parseString(playerContent).getAsJsonObject();
-                if (!object.has("flag")) object.addProperty("flag", flag);
-                return object;
+                Result result = Result.objectFrom(playerContent);
+                if (result.getFlag().isEmpty()) result.setFlag(flag);
+                return result;
+            } else if (site.getType() == 4) {
+                HashMap<String, String> params = new HashMap<>();
+                params.put("play", id);
+                params.put("flag", flag);
+                String body = OKHttp.newCall(site.getApi(), params).execute().body().string();
+                SpiderDebug.log(body);
+                return Result.fromJson(body);
             } else {
-                JsonObject object = new JsonObject();
-                object.addProperty("url", id);
-                object.addProperty("flag", flag);
-                object.addProperty("playUrl", home.getPlayerUrl());
-                object.addProperty("parse", Utils.isVideoFormat(id) ? "0" : "1");
-                return object;
+                Result result = new Result();
+                result.setUrl(id);
+                result.setFlag(flag);
+                result.setPlayUrl(site.getPlayUrl());
+                result.setParse(Utils.isVideoFormat(id) ? 0 : 1);
+                return result;
             }
         });
     }
 
-    private <T> void execute(MutableLiveData<T> result, Callable<T> callable) {
+    public void searchContent(String key, String keyword) {
+        try {
+            Site site = ApiConfig.get().getSite(key);
+            if (site.getType() == 3) {
+                Spider spider = ApiConfig.get().getCSP(site);
+                String searchContent = spider.searchContent(keyword, false);
+                SpiderDebug.log(searchContent);
+                post(site, Result.fromJson(searchContent));
+            } else {
+                HashMap<String, String> params = new HashMap<>();
+                if (site.getType() != 0) params.put("ac", "detail");
+                params.put("wd", keyword);
+                String body = OKHttp.newCall(site.getApi(), params).execute().body().string();
+                SpiderDebug.log(body);
+                if (site.getType() == 0) post(site, Result.fromXml(body));
+                else post(site, Result.fromJson(body));
+            }
+        } catch (Exception | NoClassDefFoundError e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void post(Site site, Result result) {
+        if (result.getList().isEmpty()) return;
+        for (Vod vod : result.getList()) vod.setSite(site);
+        this.result.postValue(result);
+    }
+
+    private void execute(MutableLiveData<Result> result, Callable<Result> callable) {
         if (service != null) service.shutdownNow();
         service = Executors.newFixedThreadPool(2);
         service.execute(() -> {
             try {
-                if (!Thread.interrupted()) result.postValue(service.submit(callable).get(5, TimeUnit.SECONDS));
+                if (!Thread.interrupted()) result.postValue(service.submit(callable).get(15, TimeUnit.SECONDS));
             } catch (Exception e) {
-                if (!Thread.interrupted()) result.postValue(null);
                 e.printStackTrace();
+                if (e instanceof InterruptedException) return;
+                if (!Thread.interrupted()) result.postValue(new Result());
             }
         });
     }

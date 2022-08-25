@@ -13,7 +13,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 public class CustomVerticalGridView extends VerticalGridView {
 
-    private View mTabView;
+    private View tabView;
     private boolean pressUp;
     private boolean pressDown;
 
@@ -35,17 +35,18 @@ public class CustomVerticalGridView extends VerticalGridView {
         setOnChildViewHolderSelectedListener(new OnChildViewHolderSelectedListener() {
             @Override
             public void onChildViewHolderSelected(@NonNull RecyclerView parent, @Nullable ViewHolder child, int position, int subposition) {
+                if (tabView == null) return;
                 if (pressUp && position == 0) {
-                    mTabView.setVisibility(View.VISIBLE);
+                    tabView.setVisibility(View.VISIBLE);
                 } else if (pressDown && position == 1) {
-                    mTabView.setVisibility(View.GONE);
+                    tabView.setVisibility(View.GONE);
                 }
             }
         });
     }
 
     public void setTabView(View tabView) {
-        this.mTabView = tabView;
+        this.tabView = tabView;
     }
 
     @Override
@@ -61,16 +62,17 @@ public class CustomVerticalGridView extends VerticalGridView {
                 pressDown = true;
                 return super.dispatchKeyEvent(event);
             case KeyEvent.KEYCODE_BACK:
-                moveToTop();
-                return true;
+                return moveToTop();
             default:
                 return super.dispatchKeyEvent(event);
         }
     }
 
-    public void moveToTop() {
-        mTabView.setVisibility(View.VISIBLE);
-        mTabView.requestFocus();
+    public boolean moveToTop() {
+        if (tabView == null) return false;
+        tabView.setVisibility(View.VISIBLE);
+        tabView.requestFocus();
         scrollToPosition(0);
+        return true;
     }
 }

@@ -1,7 +1,10 @@
 package com.fongmi.android.tv.bean;
 
+import android.text.TextUtils;
+
 import androidx.annotation.NonNull;
 
+import com.fongmi.android.tv.utils.Json;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonDeserializationContext;
@@ -12,6 +15,7 @@ import com.google.gson.JsonParseException;
 import com.google.gson.annotations.SerializedName;
 import com.google.gson.reflect.TypeToken;
 
+import org.json.JSONObject;
 import org.simpleframework.xml.ElementList;
 import org.simpleframework.xml.Path;
 import org.simpleframework.xml.Root;
@@ -22,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Root(name = "rss", strict = false)
 public class Result {
@@ -39,6 +44,21 @@ public class Result {
     @SerializedName("filters")
     private LinkedHashMap<String, List<Filter>> filters;
 
+    @SerializedName("header")
+    private JsonElement header;
+    @SerializedName("playUrl")
+    private String playUrl;
+    @SerializedName("jxFrom")
+    private String jxFrom;
+    @SerializedName("parse")
+    private Integer parse;
+    @SerializedName("jx")
+    private Integer jx;
+    @SerializedName("flag")
+    private String flag;
+    @SerializedName("url")
+    private String url;
+
     public static Result fromJson(String str) {
         try {
             Type type = new TypeToken<LinkedHashMap<String, List<Filter>>>() {}.getType();
@@ -46,7 +66,6 @@ public class Result {
             Result result = gson.fromJson(str, Result.class);
             return result == null ? new Result() : result;
         } catch (Exception e) {
-            e.printStackTrace();
             return new Result();
         }
     }
@@ -55,7 +74,18 @@ public class Result {
         try {
             return new Persister().read(Result.class, str);
         } catch (Exception e) {
-            e.printStackTrace();
+            return new Result();
+        }
+    }
+
+    public static Result fromObject(JSONObject object) {
+        return objectFrom(object.toString());
+    }
+
+    public static Result objectFrom(String str) {
+        try {
+            return new Gson().fromJson(str, Result.class);
+        } catch (Exception e) {
             return new Result();
         }
     }
@@ -78,6 +108,54 @@ public class Result {
 
     public LinkedHashMap<String, List<Filter>> getFilters() {
         return filters == null ? new LinkedHashMap<>() : filters;
+    }
+
+    private JsonElement getHeader() {
+        return header;
+    }
+
+    public String getPlayUrl() {
+        return TextUtils.isEmpty(playUrl) ? "" : playUrl;
+    }
+
+    public void setPlayUrl(String playUrl) {
+        this.playUrl = playUrl;
+    }
+
+    public String getJxFrom() {
+        return TextUtils.isEmpty(jxFrom) ? "" : jxFrom;
+    }
+
+    public Integer getParse(Integer def) {
+        return parse == null ? def : parse;
+    }
+
+    public void setParse(Integer parse) {
+        this.parse = parse;
+    }
+
+    public Integer getJx() {
+        return jx == null ? 0 : jx;
+    }
+
+    public String getFlag() {
+        return TextUtils.isEmpty(flag) ? "" : flag;
+    }
+
+    public void setFlag(String flag) {
+        this.flag = flag;
+    }
+
+    public String getUrl() {
+        return TextUtils.isEmpty(url) ? "" : url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
+    public Map<String, String> getHeaders() {
+        return Json.toMap(getHeader());
     }
 
     @NonNull

@@ -1,32 +1,32 @@
 package com.fongmi.android.tv.player;
 
-import android.os.Handler;
-import android.os.Looper;
+import androidx.annotation.NonNull;
 
 import com.fongmi.android.tv.App;
+import com.fongmi.android.tv.R;
+import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.event.PlayerEvent;
 import com.fongmi.android.tv.ui.custom.CustomWebView;
+import com.fongmi.android.tv.utils.Notify;
+import com.fongmi.android.tv.utils.ResUtil;
 import com.google.android.exoplayer2.ExoPlayer;
+import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.util.Util;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-
-import org.greenrobot.eventbus.EventBus;
 
 import java.util.Formatter;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-public class Players implements Player.Listener {
+public class Players implements Player.Listener, ParseTask.Callback {
 
     private CustomWebView webView;
     private StringBuilder builder;
     private Formatter formatter;
     private ExoPlayer exoPlayer;
-    private Handler handler;
+    private ParseTask parseTask;
+    private String key;
+    private int retry;
 
     private static class Loader {
         static volatile Players INSTANCE = new Players();
@@ -39,7 +39,6 @@ public class Players implements Player.Listener {
     public void init() {
         builder = new StringBuilder();
         webView = new CustomWebView(App.get());
-        handler = new Handler(Looper.getMainLooper());
         exoPlayer = new ExoPlayer.Builder(App.get()).build();
         formatter = new Formatter(builder, Locale.getDefault());
         exoPlayer.addListener(this);
@@ -47,6 +46,31 @@ public class Players implements Player.Listener {
 
     public ExoPlayer exo() {
         return exoPlayer;
+    }
+
+    public CustomWebView web() {
+        return webView;
+    }
+
+    public String getKey() {
+        return key;
+    }
+
+    public void setKey(String key) {
+        this.key = key;
+    }
+
+    public int getRetry() {
+        return retry;
+    }
+
+    public void setRetry(int retry) {
+        this.retry = retry;
+    }
+
+    public int addRetry() {
+        ++retry;
+        return retry;
     }
 
     public String getSpeed() {
@@ -62,56 +86,60 @@ public class Players implements Player.Listener {
     }
 
     public String getTime(long time) {
-        time = exoPlayer.getCurrentPosition() + time;
-        if (time > exoPlayer.getDuration()) time = exoPlayer.getDuration();
+        time = getCurrentPosition() + time;
+        if (time > getDuration()) time = getDuration();
         else if (time < 0) time = 0;
+        return getStringForTime(time);
+    }
+
+    public String getStringForTime(long time) {
         return Util.getStringForTime(builder, formatter, time);
     }
 
+    public long getCurrentPosition() {
+        return exoPlayer.getCurrentPosition();
+    }
+
+    public long getDuration() {
+        return exoPlayer.getDuration();
+    }
+
     public void seekTo(int time) {
-        exoPlayer.seekTo(exoPlayer.getCurrentPosition() + time);
+        exoPlayer.seekTo(getCurrentPosition() + time);
+    }
+
+    public void seekTo(long time) {
+        exoPlayer.seekTo(time);
     }
 
     public boolean isPlaying() {
         return exoPlayer.isPlaying();
     }
 
-    public void setMediaSource(JsonObject object) {
-        String parse = object.get("parse").getAsString();
-        String url = object.get("url").getAsString();
-        if (parse.equals("1")) {
-            loadWebView(url);
+    public boolean isIdle() {
+        return exoPlayer.getPlaybackState() == Player.STATE_IDLE;
+    }
+
+    public boolean canNext() {
+        return getCurrentPosition() >= getDuration();
+    }
+
+    public void setMediaSource(Result result, boolean useParse) {
+        if (result.getUrl().isEmpty()) {
+            PlayerEvent.error(R.string.error_play_load);
+        } else if (result.getParse(1) == 1 || result.getJx() == 1) {
+            if (parseTask != null) parseTask.cancel();
+            parseTask = ParseTask.create(this).run(result, useParse);
         } else {
-            setMediaSource(getPlayHeader(object), url);
+            setMediaSource(result.getHeaders(), result.getPlayUrl() + result.getUrl());
         }
-    }
-
-    private HashMap<String, String> getPlayHeader(JsonObject object) {
-        HashMap<String, String> headers = new HashMap<>();
-        if (!object.has("header")) return headers;
-        String header = object.get("header").getAsString();
-        JsonElement element = JsonParser.parseString(header);
-        if (element.isJsonObject()) {
-            object = element.getAsJsonObject();
-            for (String key : object.keySet()) headers.put(key, object.get(key).getAsString());
-        }
-        return headers;
-    }
-
-    private void loadWebView(String url) {
-        handler.removeCallbacks(mTimer);
-        handler.postDelayed(mTimer, 10000);
-        handler.post(() -> webView.start(url));
     }
 
     public void setMediaSource(Map<String, String> headers, String url) {
-        handler.post(() -> {
-            handler.removeCallbacks(mTimer);
-            exoPlayer.setMediaSource(ExoUtil.getSource(headers, url));
-            exoPlayer.prepare();
-            exoPlayer.play();
-            webView.stop();
-        });
+        exoPlayer.setMediaSource(ExoUtil.getSource(headers, url));
+        PlayerEvent.state(0);
+        exoPlayer.prepare();
+        exoPlayer.play();
     }
 
     public void pause() {
@@ -121,10 +149,14 @@ public class Players implements Player.Listener {
     }
 
     public void stop() {
+        this.retry = 0;
         if (exoPlayer != null) {
             exoPlayer.stop();
-            exoPlayer.seekTo(0);
+            exoPlayer.clearMediaItems();
             exoPlayer.setPlaybackSpeed(1.0f);
+        }
+        if (webView != null) {
+            webView.stop(false);
         }
     }
 
@@ -144,22 +176,26 @@ public class Players implements Player.Listener {
             webView.destroy();
             webView = null;
         }
-        if (handler != null) {
-            handler = null;
-        }
     }
 
-    private final Runnable mTimer = new Runnable() {
-        @Override
-        public void run() {
-            EventBus.getDefault().post(new PlayerEvent(-1));
-            exoPlayer.stop();
-            webView.stop();
-        }
-    };
+    @Override
+    public void onParseSuccess(Map<String, String> headers, String url, String from) {
+        if (from.length() > 0) Notify.show(ResUtil.getString(R.string.parse_from, from));
+        setMediaSource(headers, url);
+    }
+
+    @Override
+    public void onParseError() {
+        PlayerEvent.error(R.string.error_play_parse);
+    }
+
+    @Override
+    public void onPlayerError(@NonNull PlaybackException error) {
+        PlayerEvent.error(R.string.error_play_format, true);
+    }
 
     @Override
     public void onPlaybackStateChanged(int state) {
-        EventBus.getDefault().post(new PlayerEvent(state));
+        PlayerEvent.state(state);
     }
 }

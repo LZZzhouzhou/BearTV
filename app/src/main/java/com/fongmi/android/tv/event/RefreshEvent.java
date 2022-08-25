@@ -1,22 +1,24 @@
 package com.fongmi.android.tv.event;
 
+import org.greenrobot.eventbus.EventBus;
+
 public class RefreshEvent {
 
     private final Type type;
 
-    public static RefreshEvent image() {
-        return new RefreshEvent(Type.IMAGE);
+    public static void image() {
+        EventBus.getDefault().post(new RefreshEvent(Type.IMAGE));
     }
 
-    public static RefreshEvent video() {
-        return new RefreshEvent(Type.VIDEO);
+    public static void video() {
+        EventBus.getDefault().post(new RefreshEvent(Type.VIDEO));
     }
 
-    public static RefreshEvent recent() {
-        return new RefreshEvent(Type.RECENT);
+    public static void history() {
+        EventBus.getDefault().post(new RefreshEvent(Type.HISTORY));
     }
 
-    public RefreshEvent(Type type) {
+    private RefreshEvent(Type type) {
         this.type = type;
     }
 
@@ -25,6 +27,6 @@ public class RefreshEvent {
     }
 
     public enum Type {
-        IMAGE, VIDEO, RECENT
+        IMAGE, VIDEO, HISTORY
     }
 }

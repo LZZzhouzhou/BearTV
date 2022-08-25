@@ -27,7 +27,7 @@ public class ExoUtil {
         DataSource.Factory factory = getFactory(headers, url);
         MediaItem mediaItem = new MediaItem.Builder().setUri(videoUri).build();
         int type = Util.inferContentType(videoUri);
-        if (type == C.CONTENT_TYPE_HLS || url.contains(".php") || url.contains("m3u8")) {
+        if (type == C.CONTENT_TYPE_HLS || url.contains("php") || url.contains("m3u8") || Players.get().getRetry() > 0) {
             return new HlsMediaSource.Factory(factory).createMediaSource(mediaItem);
         } else if (type == C.CONTENT_TYPE_DASH) {
             return new DashMediaSource.Factory(factory).createMediaSource(mediaItem);
@@ -41,7 +41,7 @@ public class ExoUtil {
     }
 
     private static DataSource.Factory getFactory(Map<String, String> headers, String url) {
-        HttpDataSource.Factory httpDataSourceFactory = new DefaultHttpDataSource.Factory().setDefaultRequestProperties(headers).setAllowCrossProtocolRedirects(true);
+        HttpDataSource.Factory httpDataSourceFactory = new DefaultHttpDataSource.Factory().setDefaultRequestProperties(headers).setConnectTimeoutMs(10000).setReadTimeoutMs(10000).setAllowCrossProtocolRedirects(true);
         return url.startsWith("rtmp") ? new RtmpDataSource.Factory() : new DefaultDataSource.Factory(App.get(), httpDataSourceFactory);
     }
 }

@@ -73,6 +73,8 @@ public class Vod {
     @ElementList(entry = "dd", required = false, inline = true)
     private List<Flag> vodFlags;
 
+    private Site site;
+
     public String getVodId() {
         return TextUtils.isEmpty(vodId) ? "" : vodId;
     }
@@ -125,6 +127,26 @@ public class Vod {
         return vodFlags = vodFlags == null ? new ArrayList<>() : vodFlags;
     }
 
+    public Site getSite() {
+        return site;
+    }
+
+    public void setSite(Site site) {
+        this.site = site;
+    }
+
+    public String getSiteName() {
+        return getSite() == null ? "" : getSite().getName();
+    }
+
+    public int getSiteVisible() {
+        return getSite() == null ? View.GONE : View.VISIBLE;
+    }
+
+    public int getYearVisible() {
+        return getVodYear().isEmpty() ? View.GONE : View.VISIBLE;
+    }
+
     public int getRemarkVisible() {
         return getVodRemarks().isEmpty() ? View.GONE : View.VISIBLE;
     }
@@ -133,7 +155,7 @@ public class Vod {
         String[] playFlags = getVodPlayFrom().split("\\$\\$\\$");
         String[] playUrls = getVodPlayUrl().split("\\$\\$\\$");
         for (int i = 0; i < playFlags.length; i++) {
-            if (playFlags[i].isEmpty()) continue;
+            if (playFlags[i].isEmpty() || i >= playUrls.length) continue;
             Vod.Flag item = new Vod.Flag(playFlags[i]);
             item.createEpisode(playUrls[i]);
             getVodFlags().add(item);
@@ -155,6 +177,8 @@ public class Vod {
 
         @SerializedName("episodes")
         private List<Episode> episodes;
+
+        private boolean activated;
 
         public static Flag objectFrom(String str) {
             return new Gson().fromJson(str, Flag.class);
@@ -185,17 +209,30 @@ public class Vod {
             String[] urls = data.contains("#") ? data.split("#") : new String[]{data};
             for (String url : urls) {
                 String[] split = url.split("\\$");
-                if (split.length >= 2) getEpisodes().add(new Vod.Flag.Episode(split[0], split[1]));
-                else getEpisodes().add(new Vod.Flag.Episode(ResUtil.getString(R.string.play), url));
+                Episode episode = split.length >= 2 ? new Vod.Flag.Episode(split[0], split[1]) : new Vod.Flag.Episode(ResUtil.getString(R.string.play), url);
+                if (!getEpisodes().contains(episode)) getEpisodes().add(episode);
             }
         }
 
-        public void deactivated() {
-            for (Episode item : getEpisodes()) item.deactivated();
+        public boolean isActivated() {
+            return activated;
         }
 
-        public void setActivated(Episode episode) {
-            for (Episode item : getEpisodes()) item.setActivated(episode);
+        public void setActivated(boolean activated) {
+            this.activated = activated;
+        }
+
+        public void toggle(boolean activated, Episode episode) {
+            if (activated) for (Episode item : getEpisodes()) item.setActivated(episode);
+            else for (Episode item : getEpisodes()) item.deactivated();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (!(obj instanceof Flag)) return false;
+            Flag it = (Flag) obj;
+            return getFlag().equals(it.getFlag());
         }
 
         @NonNull
@@ -210,7 +247,7 @@ public class Vod {
             private final String name;
             @SerializedName("url")
             private final String url;
-            @SerializedName("activated")
+
             private boolean activated;
 
             public Episode(String name, String url) {
@@ -236,6 +273,14 @@ public class Vod {
 
             private void setActivated(Episode item) {
                 this.activated = item.equals(this);
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (this == obj) return true;
+                if (!(obj instanceof Episode)) return false;
+                Episode it = (Episode) obj;
+                return getUrl().equals(it.getUrl()) || getName().equals(it.getName());
             }
         }
     }
